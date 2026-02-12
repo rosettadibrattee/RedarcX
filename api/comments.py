@@ -59,7 +59,9 @@ class Comments:
          text += ' LIMIT 500'
 
       if len(params) == 0:
-         resp.status = falcon.HTTP_500
+         resp.text = json.dumps({"error": "At least one filter parameter is required"})
+         resp.content_type = falcon.MEDIA_JSON
+         resp.status = falcon.HTTP_400
          return
       
       try:
@@ -102,7 +104,7 @@ def unflatten(data, root):
       if parent_id == root:
          comment_tree.append(comment)
       else:
-         if lookup[parent_id] == None:
+         if parent_id not in lookup:
             comment_tree.append(Comment({'body': "[comment not found]", 'author': "[unknown]", 'id': id, 'replies': [comment], 'parent_id': root, 'link_id': root}))
    # print(comment_tree)
    return comment_tree

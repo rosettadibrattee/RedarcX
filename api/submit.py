@@ -18,19 +18,26 @@ class Submit:
         resp.text = json.dumps({"status": "ingest disabled", "url": ""})
         resp.status = falcon.HTTP_501
         return        
-      obj = req.get_media()
+      obj = req.get_media() or {}
       url = obj.get('url')
       pw = obj.get('password')
 
-      if os.getenv('INGEST_PASSWORD'):
-        if pw != os.getenv('INGEST_PASSWORD'):
+      ingest_pw = (os.getenv('INGEST_PASSWORD') or '').strip().strip('"').strip("'")
+      if ingest_pw:
+        if pw != ingest_pw:
           resp.status = falcon.HTTP_401
+          resp.text = json.dumps({"status": "invalid password"})
           return
+
+      if not isinstance(url, str):
+        resp.text = json.dumps({"status": "invalid url", "url": ""}, ensure_ascii=False)
+        resp.status = falcon.HTTP_400
+        return
 
       if 'redd.it' in url:
         if re.search(r'\S+redd\.it\/\S+\/?$', url) == None:
           resp.text = json.dumps({"status": "invalid url", "url": url}, ensure_ascii=False)
-          resp.status = falcon.HTTP_500
+          resp.status = falcon.HTTP_400
           return
         else:
           x = url.split('/')
@@ -40,7 +47,7 @@ class Submit:
       elif 'reddit.com/r/' in url:
         if re.search(r'\S+reddit\.com\/r\/\S+\/comments\/\S+\/\S+\/?$', url) == None:
           resp.text = json.dumps({"status": "invalid url", "url": url}, ensure_ascii=False)
-          resp.status = falcon.HTTP_500
+          resp.status = falcon.HTTP_400
           return
         else:
           x = url.split('/')
@@ -49,11 +56,11 @@ class Submit:
               id = x[x.index(i) + 4]
       else:
         resp.text = json.dumps({"status": "invalid url", "url": url}, ensure_ascii=False)
-        resp.status = falcon.HTTP_500
+        resp.status = falcon.HTTP_400
         return
       
       jid = hashlib.md5(id.encode('utf-8')).hexdigest() 
-      exists = self.job_exists(id)
+      exists = self.job_exists(jid)
       if exists[0] == True:
         resp.text = json.dumps({"status": "success", "id": id, "position": exists[1].get_position()}, ensure_ascii=False)
         resp.status = falcon.HTTP_200
@@ -74,8 +81,8 @@ class Submit:
         resp.status = falcon.HTTP_500
         resp.text = json.dumps({"status": "failed"}, ensure_ascii=False)
 
-    def job_exists(self, id):
-      job = self.url_queue.fetch_job(id)  
+    def job_exists(self, job_id):
+      job = self.url_queue.fetch_job(job_id)  
       if job == None:
         return (False, None)   
       status = job.get_status()

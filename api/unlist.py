@@ -10,15 +10,24 @@ class Unlist:
       self.pool = pool
 
    def on_post(self, req, resp):
-      obj = req.get_media()
+      obj = req.get_media() or {}
       subreddit = obj.get('subreddit')
       unlist = obj.get('unlist')
       pw = obj.get('password')
+      admin_pw = (os.getenv('ADMIN_PASSWORD') or '').strip().strip('"').strip("'")
 
-      if pw != os.getenv('ADMIN_PASSWORD'):
+      if admin_pw and pw != admin_pw:
          resp.status = falcon.HTTP_401
+         resp.text = json.dumps({"error": "Invalid password"})
+         resp.content_type = falcon.MEDIA_JSON
          return
-      
+
+      if not subreddit:
+         resp.status = falcon.HTTP_400
+         resp.text = json.dumps({"error": "subreddit is required"})
+         resp.content_type = falcon.MEDIA_JSON
+         return
+       
       try:
          pg_con = self.pool.getconn()
          cursor = pg_con.cursor(cursor_factory=RealDictCursor)
@@ -31,4 +40,6 @@ class Unlist:
       finally:
          self.pool.putconn(pg_con)
 
+      resp.text = json.dumps({"status": "ok"})
+      resp.content_type = falcon.MEDIA_JSON
       resp.status = falcon.HTTP_200

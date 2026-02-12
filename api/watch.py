@@ -10,17 +10,28 @@ class Watch:
       self.pool = pool
 
    def on_post(self, req, resp):
-      obj = req.get_media()
+      obj = req.get_media() or {}
       subreddit = obj.get('subreddit')
       action = obj.get('action')
       pw = obj.get('password')
+      admin_pw = (os.getenv('ADMIN_PASSWORD') or '').strip().strip('"').strip("'")
 
-      if pw != os.getenv('ADMIN_PASSWORD'):
+      if admin_pw and pw != admin_pw:
          resp.status = falcon.HTTP_401
+         resp.text = json.dumps({"error": "Invalid password"})
+         resp.content_type = falcon.MEDIA_JSON
+         return
+
+      if not subreddit:
+         resp.status = falcon.HTTP_400
+         resp.text = json.dumps({"error": "subreddit is required"})
+         resp.content_type = falcon.MEDIA_JSON
          return
       
       if action != "add" and action != "remove":
-         resp.status = falcon.HTTP_500
+         resp.status = falcon.HTTP_400
+         resp.text = json.dumps({"error": "action must be add or remove"})
+         resp.content_type = falcon.MEDIA_JSON
          return
       
       try:
@@ -38,4 +49,6 @@ class Watch:
       finally:
          self.pool.putconn(pg_con)
 
+      resp.text = json.dumps({"status": "ok"})
+      resp.content_type = falcon.MEDIA_JSON
       resp.status = falcon.HTTP_200

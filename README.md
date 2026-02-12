@@ -1,285 +1,236 @@
-# redarc
-A self-hosted solution to search, view and archive link aggregators.
+# RedArc v2 — Modernized Self-Hosted Reddit Archive
 
-### Supports:
-- Reddit
-- HackerNews (in progress)
+A complete reframe of [Yakabuff/redarc](https://github.com/Yakabuff/redarc), modernizing the frontend, search capabilities, and data ingestion workflow.
 
-## Features:
-- Ingest pushshift dumps
-- View threads/comments
-- Fulltext search via PostgresFTS
-- Submit threads to be archived via API
-- Periodically fetch rising, new and hot threads from specified subreddits
-- Download `i.redd.it` images from threads.
+## What Changed
 
-Please abide by the Reddit Terms of Service and [User Agreement](https://www.redditinc.com/policies/user-agreement-april-18-2023) if you are using their API
+### Frontend (Complete Rewrite)
+| Before | After |
+|--------|-------|
+| Bootstrap 2 era styling | Dark theme with JetBrains Mono + Source Serif 4 |
+| `class` instead of `className` | Proper React patterns throughout |
+| Direct DOM manipulation for pagination | State-driven cursor-based pagination |
+| Hardcoded year dropdown (stops at 2023) | Dynamic date range filters |
+| No loading/error/empty states | Full loading skeletons, error boundaries, empty states |
+| Search requires ALL fields | Optional filters, search across all subreddits |
+| No file upload UI | Full drag-and-drop upload with progress tracking |
+| Inline fetch calls everywhere | Centralized API client (`src/utils/api.js`) |
+| No responsive design | Mobile-first responsive layout |
 
-![Alt text](docs/screenshot.png "screenshot")
-![Alt text](docs/screenshot2.png "screenshot2")
+### Backend (New Endpoints)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `POST /upload` | POST | Upload NDJSON files via multipart form |
+| `GET /upload/status` | GET | Check upload job progress |
+| `GET /stats` | GET | Archive-wide statistics |
 
-### Download pushshift dumps
-
-```
-https://the-eye.eu/redarcs/
-```
-All data 2005-06 to 2022-12:
-```
-magnet:?xt=urn:btih:7c0645c94321311bb05bd879ddee4d0eba08aaee&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce
-```
-Top 20,000 subreddits:
-```
-magnet:?xt=urn:btih:c398a571976c78d346c325bd75c47b82edf6124e&tr=https%3A%2F%2Facademictorrents.com%2Fannounce.php&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce
-```
-# Installation:
-
-Master branch is unstable. Please checkout a release
-
-## Docker 
-
-Install Docker: https://docs.docker.com/engine/install
-
-Services:
-- `postgres`: Main database for threads, comments and subreddits
-- `postgres_fts`: Database for full-text searching
-- `redarc`: API backend and React frontend 
-  - Requires: `redis`, `reddit_worker` if `INGEST_ENABLED`
-- `redis`: Required for any service that uses a task queue
-- `image_downloader`: Asynchronously downloads images from Reddit if `DOWNLOAD_IMAGES`
-  - Requires: `redis`, `reddit_worker`
-- `index_worker`: Indexes threads/comments into postgres_fts 
-  - Requires: `postgres_fts` and `postgres`
-- `reddit_worker`: Asynchronously fetches threads/comments from Reddit 
-  - Requires: `redis`, `image_downloader`
-- `subreddit_worker`: Asynchronously fetches hot/new/rising thread IDs from subreddits 
-  - Requires: `reddit_worker` and `redis`
-
-If you wish to change the postgres password, make sure `POSTGRES_PASSWORD` and `PGPASSWORD` are the same.
-
-If you are using redarc on your personal machine, set docker envars `REDARC_API=http://localhost/api` and `SERVER_NAME=localhost`.
-
-`REDARC_API` is the URL of your API server; it must end with `/api` 
-eg: `http://redarc.mysite.org/api`.  
-
-`REDARC_FE_API` is the URL of the API server you want the frontend to send requests to.  
-If you are not using a reverse proxy, it should be the same as `REDARC_API`.
-
-`SERVER_NAME` is the URL your redarc instance is running on. eg: `redarc.mysite.org`
-
-Setting an `INGEST_PASSWORD` and `ADMIN_PASSWORD` in your API is highly recommended to prevent abuse.
-
-`IMAGE_PATH` is the path you want `image_downloader` worker to download images.  This is the same path the API backend fetches images from.
-
-`INDEX_DELAY` is how often you want `index_worker` to index comments/threads
-
-`SUBREDDITS` is a list of subreddits you want `subreddit_worker` to fetch threads from.  It is delimited by commas
-
-`FETCH_DELAY` is how often you `subreddit_worker` to fetch threads.
-
-`NUM_THREADS` is the number of threads you want downloaded from hot, rising or new.
-
-## Docker compose (Recommended):
-
-Docker compose:
-
-Modify envars as needed
-```
-$ git clone https://github.com/Yakabuff/redarc.git
-$ cd redarc
-$ git fetch --all --tags
-$ git checkout tags/vx.y.z -b vx.y.z
-// Modify .env as-needed
-$ cp default.env .env
-$ docker compose up -d
-```
-
-## Manual installation:
+### Architecture Changes
 
 ```
-$ git clone https://github.com/Yakabuff/redarc.git
-$ cd redarc
-```
-### 1) Provision Postgres database 
-
-```
-$ docker pull postgres
-$ docker run \
-  --name pgsql-dev \
-  -e POSTGRES_PASSWORD=test1234 \
-  -d \
-  -v postgres-docker:/var/lib/postgresql/data \
-  -p 5432:5432 postgres 
-```
-
-```
-$ docker run \
-  --name pgsql-fts \
-  -e POSTGRES_PASSWORD=test1234 \
-  -d \
-  -v postgresfts-docker:/var/lib/postgresql/data \
-  -p 5433:5432 postgres 
+BEFORE:                              AFTER:
+                                     
+CLI only data ingestion:             UI + CLI data ingestion:
+  $ python3 load_sub.py <file>         Drag & drop in browser
+  $ python3 load_comments.py <file>    OR python3 load_sub.py <file>
+  $ python3 load_sub_fts.py <file>     
+  $ python3 load_comments_fts.py       /upload endpoint handles:
+  $ python3 index.py [subreddit]       - Parsing NDJSON
+                                       - Inserting to main PG
+                                       - Inserting to FTS PG  
+                                       - Auto-indexing subreddits
+                                       - Background processing
+                                       - Progress reporting
 ```
 
-```
-psql -h localhost -U postgres -a -f scripts/db_submissions.sql
-psql -h localhost -U postgres -a -f scripts/db_comments.sql
-psql -h localhost -U postgres -a -f scripts/db_subreddits.sql
-psql -h localhost -U postgres -a -f scripts/db_submissions_index.sql
-psql -h localhost -U postgres -a -f scripts/db_comments_index.sql
-psql -h localhost -U postgres -a -f scripts/db_status_comments.sql
-psql -h localhost -U postgres -a -f scripts/db_status_comments_index.sql
-psql -h localhost -U postgres -a -f scripts/db_status_submissions.sql
-psql -h localhost -U postgres -a -f scripts/db_status_submissions_index.sql
-psql -h localhost -U postgres -p 5433 -a -f scripts/db_fts.sql
-psql -h localhost -U postgres -a -f scripts/db_progress.sql
-```
-
-### 2) Process dump and insert rows into postgres database with the load_sub/load_comments scripts
-
-Note: Be sure the ingest and Reddit workers are disabled
-```
-python3 scripts/load_sub.py <path_to_submission_file>
-python3 scripts/load_comments.py <path_to_comment_file>
-python3 scripts/load_sub_fts.py <path_to_submission_file>
-python3 scripts/load_comments_fts.py <path_to_comment_file>
-python3 scripts/index.py [subreddit_name]
-python3 scripts/unlist.py <subreddit> <true|false>
-```
-
-### 3) Start the API server.
+## Project Structure
 
 ```
-$ cd api
-$ python -m venv venv
-$ source venv/bin/activate
-$ pip install gunicorn
-$ pip install falcon
-$ pip install rq
-$ pip install python-dotenv
-$ pip install psycopg2-binary
-$ gunicorn app
+redarc/
+├── api/
+│   ├── app.py              # Updated: CORS middleware, new routes
+│   ├── upload.py            # NEW: File upload + processing + stats
+│   ├── comments.py          # Unchanged
+│   ├── submissions.py       # Unchanged
+│   ├── subreddits.py        # Unchanged
+│   ├── search.py            # Unchanged
+│   ├── submit.py            # Unchanged
+│   ├── media.py             # Unchanged
+│   ├── progress.py          # Unchanged
+│   ├── status.py            # Unchanged
+│   ├── unlist.py            # Unchanged
+│   ├── watch.py             # Unchanged
+│   └── redarc_logger.py     # Unchanged
+│
+├── frontend/
+│   ├── src/
+│   │   ├── main.jsx         # Entry point with router
+│   │   ├── utils/
+│   │   │   └── api.js       # NEW: Centralized API client
+│   │   ├── components/      # NEW: Reusable UI components
+│   │   │   ├── Header.jsx
+│   │   │   ├── Breadcrumb.jsx
+│   │   │   ├── EmptyState.jsx
+│   │   │   ├── Loading.jsx
+│   │   │   ├── Pagination.jsx
+│   │   │   ├── CommentTree.jsx
+│   │   │   └── Toast.jsx
+│   │   └── pages/           # NEW: Page-level components
+│   │       ├── Index.jsx        # Subreddit grid + stats
+│   │       ├── Subreddit.jsx    # Submission list
+│   │       ├── Thread.jsx       # Post + threaded comments
+│   │       ├── Search.jsx       # Full-text search with filters
+│   │       ├── Upload.jsx       # File upload + URL submit
+│   │       └── Admin.jsx        # Watch/unlist/progress
+│   ├── package.json          # Updated deps (Tailwind, Lucide)
+│   └── vite.config.js
+│
+├── scripts/                  # Unchanged (CLI still works)
+├── ingest/                   # Unchanged
+├── docker-compose.yml        # Unchanged
+└── Dockerfile                # Unchanged
 ```
 
-### 4) Start the frontend
+## New API: `/upload`
 
-```
-cd ../redarc-frontend
-mv sample.env .env
-```
-Set address for API server in the .env file
+### POST /upload
+Upload an NDJSON file for processing.
 
-```
-VITE_API_DOMAIN=http://my-api-server.com/api/
-```
+**Request:** `multipart/form-data`
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | File | Yes | NDJSON file (.json, .ndjson) |
+| `type` | String | No | `submissions`, `comments`, or `auto` (default: auto) |
+| `password` | String | No | Ingest password if INGEST_PASSWORD is set |
+| `target` | String | No | `main`, `fts`, or `both` (default: both) |
+| `auto_index` | String | No | `true` or `false` (default: true) |
 
-```
-npm i
-npm run dev // Dev server
-```
-
-### 5) Provision NGINX (Optional)
-
-Edit nginx/nginx_original.conf with your own values
-```
-$ cd ..
-$ mv nginx/redarc_original.conf /etc/nginx/conf.d/redarc.conf
-```
-
-```
-cd redarc-frontend
-npm run build 
-cp -R dist/* /var/www/html/redarc/
-systemctl restart nginx
+**Response:** `202 Accepted`
+```json
+{
+  "status": "accepted",
+  "job_id": "a3f2b1c8",
+  "filename": "RS_2023-01.ndjson",
+  "file_size": 1048576
+}
 ```
 
-### 6) Setup submission workers
+### GET /upload/status
+Check upload job progress.
 
-Fill in .env files with your own credentials.
+**Query params:** `?job_id=a3f2b1c8` (optional — omit for all jobs)
 
-```
-$ docker pull redis
-$ docker run --name some-redis -d redis
-$ cd redarc/ingest
-$ python -m venv venv
-$ source venv/bin/activate
-$ pip install rq
-$ pip install python-dotenv
-$ pip install praw
-$ pip install psycopg2-binary
-$ pip install gallery-dl
-$ python3 ingest/reddit_worker/reddit_worker.py
-$ python3 ingest/index_worker/index_worker.py
-$ python3 ingest/subreddit_worker/subreddit_worker.py
-$ python3 ingest/image_downloader/image_downloader.py
+**Response:**
+```json
+{
+  "id": "a3f2b1c8",
+  "filename": "RS_2023-01.ndjson",
+  "status": "processing",
+  "lines_processed": 45000,
+  "inserted": 44800,
+  "skipped": 150,
+  "errors": 50,
+  "subreddits": ["programming", "python"]
+}
 ```
 
-# Ingest data:
+### GET /stats
+Archive statistics.
 
-## Postgres:
-
-Note: Be sure the ingest and Reddit workers are disabled
-
-Ensure `python3`, `pip` and `psycopg2-binary` are installed:
-```
-# Decompress dumps
-
-$ unzstd <submission_file>.zst
-
-$ unzstd <comment_file>.zst
-
-$ pip install pyscopg2-binary
-
-# Change database credentials if needed
-
-$ python3 scripts/load_sub.py <path_to_submission_file>
-
-$ python3 scripts/load_sub_fts.py <path_to_submission_file>
-
-$ python3 scripts/load_comments.py <path_to_comment_file>
-
-$ python3 scripts/load_comments_fts.py <path_to_comment_file>
-
-$ python3 scripts/index.py [subreddit_name]
-
-# Optional
-$ python3 scripts/unlist.py <subreddit> <true|false>
-$ python3 scripts/backfill_images.py <subreddit> <after timestamp utc> <num urls>
+**Response:**
+```json
+{
+  "subreddits": 42,
+  "submissions": 284521,
+  "comments": 3842156,
+  "total_records": 4126677
+}
 ```
 
-## Web:
+## Frontend API Client
 
-- Submit Reddit URL using the web form `/submit` to be fetched by `reddit_worker`
-- Add subreddits to the `SUBREDDITS` envar (delimited by commas) to be periodically fetched by `subreddit_worker`
+All API calls are centralized in `frontend/src/utils/api.js`:
 
-# API:
+```javascript
+import { fetchSubreddits, search, uploadFile, fetchUploadStatus } from './utils/api';
 
-`search/comments?`
-- `[unflatten = <True/False>]`
-- `[subreddit = <name>]`
-- `[id = <id>]`
-- `[before = <utc_timestamp>]`
-- `[after = <utc_timestamp>]`
-- `[parent_id = <parent_id>]`
-- `[link_id = <link_id>]`
-- `[sort = <ASC/DESC>]`
+// Fetch subreddits with abort support
+const controller = new AbortController();
+const subs = await fetchSubreddits(controller.signal);
 
-`search/submissions?`
-- `[subreddit = <name>]`
-- `[id = <id>]`
-- `[before = <utc_timestamp>]`
-- `[after = <utc_timestamp>]`
-- `[sort = <ASC|DESC>]`
+// Full-text search
+const results = await search({
+  type: 'submission',
+  subreddit: 'programming',
+  query: 'rust',
+  after: '1672531200',
+});
 
-`search/subreddits`
+// Upload file
+const job = await uploadFile(fileObject, {
+  type: 'submissions',
+  password: 'mypass',
+  target: 'both',
+  autoIndex: true,
+});
 
-`search?`
-- `<subreddit = <subreddit>>`
-- `[before = <unix timestamp>]`
-- `[after = <unix timestamp>]`
-- `[sort = <asc|desc>]`
-- `[query = <seach phrase>]`
-- `<type = <comment|submission>>`
+// Poll job status
+const status = await fetchUploadStatus(job.job_id);
+```
 
-# License:
+## Upload Processing Pipeline
 
-Redarc is licensed under the MIT license
+The upload endpoint replaces the need to run 4 separate CLI scripts. Here's what happens internally:
+
+```
+1. File received via multipart POST
+2. Saved to /tmp/redarc_uploads/
+3. Background thread spawned
+4. NDJSON parsed line-by-line (streaming, low memory)
+5. Each line parsed with same logic as load_sub.py / load_comments.py
+6. Batch INSERT (500 rows) into main PG
+7. Batch INSERT into FTS PG (if target=both|fts)
+8. ON CONFLICT (id) DO NOTHING (skip duplicates)
+9. Auto-index: UPDATE subreddits table with counts
+10. Temp file cleaned up
+11. Job status updated (poll via /upload/status)
+```
+
+**Auto-detection:** When `type=auto`, the parser checks for `title`/`selftext` fields (→ submission) vs `body` field (→ comment). This handles mixed files gracefully.
+
+## Migration Guide
+
+### From v1 to v2
+
+1. **Backend:** Replace `api/app.py` with the new version. Add `api/upload.py`. No other API files changed.
+
+2. **Frontend:** Complete replacement. Delete old `frontend/src/` and replace with new structure.
+
+3. **Docker:** Host port mappings are configurable in `docker-compose.yml`:
+   - `REDARC_HTTP_PORT` (default: `8088`)
+   - `PG_HOST_PORT` (default: `55432`)
+   - `PGFTS_HOST_PORT` (default: `55433`)
+   - `REDIS_HOST_PORT` (default: `56379`)
+   - Internal API bind uses `API_PORT` (default: `18000`)
+
+4. **Data:** No database schema changes. All existing data is preserved.
+
+5. **Env vars:** Add the port env vars above to `.env` if you need custom bindings.
+
+### Breaking Changes
+- Frontend routes changed (but old URL patterns still work via the router)
+- Bootstrap CSS removed entirely (replaced with Tailwind + custom CSS)
+- `class` → `className` throughout (was a React anti-pattern)
+
+## Design System
+
+The modernized frontend uses:
+
+- **Typography:** JetBrains Mono (UI/code) + Source Serif 4 (prose/titles)
+- **Colors:** Dark base (#0a0a0b) with Reddit orange (#ff4500) accent
+- **Components:** All custom — no component library dependency
+- **Icons:** Lucide React (tree-shakeable, 1KB per icon)
+- **Layout:** CSS Grid + Flexbox, responsive breakpoints at 768px
+
+## License
+
+MIT — same as original.

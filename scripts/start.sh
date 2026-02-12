@@ -17,7 +17,12 @@ psql -h pgsql-fts -U postgres -p $PGFTS_PORT -a -f scripts/db_fts.sql
 
 cd /redarc/api
 # Start API
-gunicorn --workers=4 app &
+gunicorn \
+  --workers="${GUNICORN_WORKERS:-4}" \
+  --bind="127.0.0.1:${API_PORT:-18000}" \
+  --timeout="${GUNICORN_TIMEOUT:-600}" \
+  --graceful-timeout="${GUNICORN_GRACEFUL_TIMEOUT:-30}" \
+  app:app &
 
 # Build react frontend
 cd /redarc/frontend

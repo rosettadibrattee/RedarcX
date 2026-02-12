@@ -10,23 +10,12 @@ class Progress:
       self.pool = pool
 
    def on_post(self, req, resp):
-      obj = req.get_media()
-      if obj.get('password') != os.getenv('ADMIN_PASSWORD'):
-         try:
-            pg_con = self.pool.getconn()
-            cursor = pg_con.cursor(cursor_factory=RealDictCursor)
-            cursor.execute('SELECT job_id, start_utc, finish_utc, error FROM progress ORDER BY start_utc DESC LIMIT 200')
-            progress = cursor.fetchall()
-         except Exception as error:
-            logger.error(error)
-            resp.status = falcon.HTTP_500
-            return
-         finally:
-            self.pool.putconn(pg_con)
-
-         resp.text= json.dumps(list(progress))
+      obj = req.get_media() or {}
+      admin_pw = (os.getenv('ADMIN_PASSWORD') or '').strip().strip('"').strip("'")
+      if admin_pw and obj.get('password') != admin_pw:
+         resp.text = json.dumps({"error": "Invalid password"})
          resp.content_type = falcon.MEDIA_JSON
-         resp.status = falcon.HTTP_200
+         resp.status = falcon.HTTP_401
          return
 
       try:

@@ -45,7 +45,9 @@ class Submissions:
       text += ' LIMIT 100'
 
       if len(params) == 0:
-         resp.status = falcon.HTTP_500
+         resp.text = json.dumps({"error": "At least one filter parameter is required"})
+         resp.content_type = falcon.MEDIA_JSON
+         resp.status = falcon.HTTP_400
          return
 
       try:

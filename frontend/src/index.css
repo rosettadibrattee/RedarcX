@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- Base ---- */
+::selection {
+  background: #ff4500;
+  color: white;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a30; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6b6966; }
+
+/* ---- Animations ---- */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-spin { animation: spin 0.8s linear infinite; }
+.animate-slide-in { animation: slideIn 0.3s ease; }
+.animate-fade-in { animation: fadeIn 0.2s ease; }
+.animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
+
+/* ---- Search bar focus glow ---- */
+.search-glow:focus {
+  box-shadow: 0 0 0 3px rgba(255, 69, 0, 0.12), 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ---- Comment thread depth colors ---- */
+.depth-0 { border-left-color: #ff4500; }
+.depth-1 { border-left-color: #3b82f6; }
+.depth-2 { border-left-color: #22c55e; }
+.depth-3 { border-left-color: #ffd700; }
+.depth-4 { border-left-color: #a855f7; }
+.depth-5 { border-left-color: #ec4899; }
+
+/* ---- Upload zone ---- */
+.upload-zone {
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.upload-zone:hover,
+.upload-zone.drag-active {
+  border-color: #ff4500;
+  background: rgba(255, 69, 0, 0.06);
+}
+
+/* ---- Progress bar ---- */
+.progress-bar {
+  transition: width 300ms ease;
+}
