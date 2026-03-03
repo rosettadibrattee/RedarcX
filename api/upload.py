@@ -148,6 +148,90 @@ def _resolve_upload_filename(upload, fallback):
     return _safe_filename(fallback)
 
 
+def _extract_text_value(item):
+    """Best-effort text extraction for non-file multipart fields."""
+    for attr in ('text', 'get_text', 'value'):
+        candidate = _resolve_attr(item, attr)
+        text = _to_text(candidate)
+        if text is not None:
+            return text
+    return _to_text(item)
+
+
+def _looks_like_upload(item, key_name=''):
+    """Detect whether a multipart field represents an uploaded file part."""
+    if _normalized_name(key_name).lower() == 'file':
+        return True
+
+    for attr in ('filename', 'file_name', 'original_filename'):
+        candidate = _resolve_attr(item, attr)
+        if _normalized_name(candidate):
+            return True
+
+    return False
+
+
+def _parse_multipart_from_media(form):
+    """
+    Parse multipart form fields from Falcon media objects.
+    Supports both mapping-like and iterable MultipartForm variants.
+    """
+    form_data = {}
+    upload = None
+
+    if form is None:
+        return form_data, upload
+
+    if hasattr(form, 'items'):
+        for key, val in form.items():
+            key_name = _normalized_name(key)
+            item = val[0] if isinstance(val, list) and val else val
+            if item is None:
+                continue
+
+            if _looks_like_upload(item, key_name):
+                if upload is None:
+                    upload = item
+                continue
+
+            if key_name in form_data:
+                continue
+
+            text_value = _extract_text_value(item)
+            if text_value is not None:
+                form_data[key_name] = text_value
+
+        return form_data, upload
+
+    try:
+        parts = iter(form)
+    except TypeError:
+        return form_data, upload
+
+    for part in parts:
+        if part is None:
+            continue
+
+        part_name = _normalized_name(_resolve_attr(part, 'name') or '')
+        if _looks_like_upload(part, part_name):
+            if upload is None:
+                upload = part
+                # Falcon MultipartForm is streaming; continuing iteration may
+                # consume this part's unread body. Stop here and rely on
+                # query-param fallbacks for any trailing fields.
+                break
+            continue
+
+        if not part_name or part_name in form_data:
+            continue
+
+        text_value = _extract_text_value(part)
+        if text_value is not None:
+            form_data[part_name] = text_value
+
+    return form_data, upload
+
+
 def _check_upload_size(total_bytes, max_upload_bytes):
     if max_upload_bytes and total_bytes > max_upload_bytes:
         raise ValueError("Upload exceeds configured UPLOAD_MAX_BYTES")
@@ -233,7 +317,7 @@ def _parse_multipart_with_cgi(req):
         if not key_name:
             continue
 
-        if key_name.lower() == 'file':
+        if key_name.lower() == 'file' or _looks_like_upload(item, key_name):
             if upload is None:
                 upload = item
             continue
@@ -769,46 +853,23 @@ class Upload:
 
     def on_post(self, req, resp):
         """Handle file upload. Expects multipart form data."""
-        # Parse multipart form fields
-        form_data, upload = _parse_multipart_with_cgi(req)
+        form_data = {}
+        upload = None
 
-        # Falcon multipart parsing fallback
-        if not upload and hasattr(req, 'get_media'):
+        # Parse multipart form fields with Falcon first.
+        # Falcon's parser is the primary path for modern versions and avoids
+        # consuming the request stream via ad-hoc fallbacks.
+        if hasattr(req, 'get_media'):
             try:
                 form = req.get_media()
-                if hasattr(form, 'items'):
-                    for key, val in form.items():
-                        key_name = _normalized_name(key)
-                        item = val[0] if isinstance(val, list) and val else val
-                        if key_name.lower() == 'file':
-                            upload = item
-                            continue
-                        if key_name in form_data:
-                            continue
-                        text_value = _to_text(_resolve_attr(item, 'text'))
-                        if text_value is None:
-                            text_value = _to_text(_resolve_attr(item, 'value'))
-                        if text_value is None and item is not None:
-                            text_value = _to_text(item)
-                        if text_value is not None:
-                            form_data[key_name] = text_value
-
-                if not upload:
-                    for part in form:
-                        if not hasattr(part, 'name'):
-                            continue
-                        part_name = _normalized_name(part.name)
-                        if part_name.lower() == 'file':
-                            upload = part
-                        else:
-                            if part_name in form_data:
-                                continue
-                            text_value = _to_text(_resolve_attr(part, 'text'))
-                            if text_value is None:
-                                text_value = _to_text(_resolve_attr(part, 'value')) or ''
-                            form_data[part_name] = text_value
+                form_data, upload = _parse_multipart_from_media(form)
             except Exception as e:
                 logger.warning(f"Multipart parse failed: {e}")
+
+        # Legacy fallback for environments where Falcon multipart parsing is
+        # unavailable or returns no fields.
+        if not upload and not form_data:
+            form_data, upload = _parse_multipart_with_cgi(req)
 
         # Auth check - read password from form data or query param as fallback
         pw = form_data.get('password') or req.get_param('password') or ''

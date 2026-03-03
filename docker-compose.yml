@@ -1,34 +1,36 @@
 services:
 
   postgres:
-    image: postgres
+    image: postgres:18
     container_name: pgsql-dev
     networks:
       - redarc
     environment:
       POSTGRES_PASSWORD: test1234
+      PGDATA: /var/lib/postgresql/18/data
     volumes:
-      - pgredarc01:/var/lib/postgresql/data
+      - pgredarc01:/var/lib/postgresql
     ports:
       - "${PG_HOST_PORT:-55432}:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-h",  "pgsql-dev", "-U", "postgres"]
+      test: ["CMD", "pg_isready", "-h", "pgsql-dev", "-U", "postgres"]
       timeout: 10s
       retries: 10
 
   postgres_fts:
-    image: postgres
+    image: postgres:18
     container_name: pgsql-fts
     networks:
       - redarc
     environment:
       POSTGRES_PASSWORD: test1234
+      PGDATA: /var/lib/postgresql/18/data
     volumes:
-      - pgftsredarc01:/var/lib/postgresql/data
+      - pgftsredarc01:/var/lib/postgresql
     ports:
       - "${PGFTS_HOST_PORT:-55433}:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-h",  "pgsql-fts", "-U", "postgres"]
+      test: ["CMD", "pg_isready", "-h", "pgsql-fts", "-U", "postgres"]
       timeout: 10s
       retries: 10
 

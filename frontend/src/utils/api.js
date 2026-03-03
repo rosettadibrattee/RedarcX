@@ -110,12 +110,13 @@ export async function submitUrl(url, password = '') {
 
 export async function uploadFile(file, { type = 'auto', password = '', target = 'both', autoIndex = true, onConflict = 'skip' } = {}) {
   const formData = new FormData();
-  formData.append('file', file);
   formData.append('password', password);
   formData.append('type', type);
   formData.append('target', target);
   formData.append('auto_index', autoIndex ? 'true' : 'false');
   formData.append('on_conflict', onConflict);
+  // Append file last to preserve compatibility with streaming multipart parsers.
+  formData.append('file', file);
 
   return request('/upload', {
     method: 'POST',
