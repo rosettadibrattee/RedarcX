@@ -13,6 +13,15 @@ export default function SearchPage() {
   const [subreddit, setSubreddit] = useState('');
   const [before, setBefore] = useState('');
   const [after, setAfter] = useState('');
+  const [author, setAuthor] = useState('');
+  const [scoreMin, setScoreMin] = useState('');
+  const [scoreMax, setScoreMax] = useState('');
+  const [commentsMin, setCommentsMin] = useState('');
+  const [commentsMax, setCommentsMax] = useState('');
+  const [domain, setDomain] = useState('');
+  const [isSelf, setIsSelf] = useState('any');
+  const [matchMode, setMatchMode] = useState('partial');
+  const [limit, setLimit] = useState('100');
   const [showFilters, setShowFilters] = useState(false);
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -23,17 +32,25 @@ export default function SearchPage() {
   const handleSearch = useCallback(async () => {
     const q = query.trim();
     if (!q) { setErrorMsg('Enter a search term'); return; }
-    if (!subreddit) { setErrorMsg('Select a subreddit'); return; }
     setErrorMsg('');
     setSearching(true);
 
     try {
       const data = await searchApi({
         type: searchType,
-        subreddit,
+        subreddit: subreddit || undefined,
         query: q,
         before: toUnixTimestamp(before)?.toString(),
         after: toUnixTimestamp(after)?.toString(),
+        author: author.trim() || undefined,
+        score_min: scoreMin || undefined,
+        score_max: scoreMax || undefined,
+        num_comments_min: commentsMin || undefined,
+        num_comments_max: commentsMax || undefined,
+        domain: domain.trim() || undefined,
+        is_self: isSelf === 'any' ? undefined : (isSelf === 'yes' ? 'true' : 'false'),
+        match: matchMode,
+        limit: limit || undefined,
       });
       setResults(data);
     } catch (err) {
@@ -42,7 +59,7 @@ export default function SearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [query, searchType, subreddit, before, after]);
+  }, [query, searchType, subreddit, before, after, author, scoreMin, scoreMax, commentsMin, commentsMax, domain, isSelf, matchMode, limit]);
 
   const handlePaginate = useCallback(async (direction) => {
     if (!results || results.length === 0) return;
@@ -54,11 +71,20 @@ export default function SearchPage() {
     try {
       const data = await searchApi({
         type: searchType,
-        subreddit,
+        subreddit: subreddit || undefined,
         query: query.trim(),
         before: direction === 'next' ? ts.toString() : undefined,
         after: direction === 'prev' ? ts.toString() : undefined,
         sort: direction === 'prev' ? 'asc' : 'desc',
+        author: author.trim() || undefined,
+        score_min: scoreMin || undefined,
+        score_max: scoreMax || undefined,
+        num_comments_min: commentsMin || undefined,
+        num_comments_max: commentsMax || undefined,
+        domain: domain.trim() || undefined,
+        is_self: isSelf === 'any' ? undefined : (isSelf === 'yes' ? 'true' : 'false'),
+        match: matchMode,
+        limit: limit || undefined,
       });
       if (direction === 'prev') data.reverse();
       setResults(data);
@@ -67,7 +93,7 @@ export default function SearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [results, searchType, subreddit, query]);
+  }, [results, searchType, subreddit, query, author, scoreMin, scoreMax, commentsMin, commentsMax, domain, isSelf, matchMode, limit]);
 
   return (
     <div>
@@ -135,7 +161,7 @@ export default function SearchPage() {
                   value={subreddit}
                   onChange={(e) => setSubreddit(e.target.value)}
                 >
-                  <option value="">Select subreddit...</option>
+                  <option value="">All subreddits</option>
                   {subreddits?.map((s) => (
                     <option key={s.name} value={s.name}>r/{s.name}</option>
                   ))}
@@ -143,7 +169,12 @@ export default function SearchPage() {
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Author</label>
-                <input className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors" placeholder="Filter by author..." />
+                <input
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  placeholder="Filter by author..."
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">After Date</label>
@@ -153,19 +184,105 @@ export default function SearchPage() {
                 <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Before Date</label>
                 <input type="date" className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors" value={before} onChange={(e) => setBefore(e.target.value)} />
               </div>
+              <div>
+                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Score Min</label>
+                <input
+                  type="number"
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  placeholder="e.g. 10"
+                  value={scoreMin}
+                  onChange={(e) => setScoreMin(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Score Max</label>
+                <input
+                  type="number"
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  placeholder="e.g. 500"
+                  value={scoreMax}
+                  onChange={(e) => setScoreMax(e.target.value)}
+                />
+              </div>
+              {searchType === 'submission' && (
+                <>
+                  <div>
+                    <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Comments Min</label>
+                    <input
+                      type="number"
+                      className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                      placeholder="e.g. 20"
+                      value={commentsMin}
+                      onChange={(e) => setCommentsMin(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Comments Max</label>
+                    <input
+                      type="number"
+                      className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                      placeholder="e.g. 200"
+                      value={commentsMax}
+                      onChange={(e) => setCommentsMax(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Domain Contains</label>
+                    <input
+                      className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                      placeholder="e.g. github.com"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Self Posts</label>
+                    <select
+                      className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                      value={isSelf}
+                      onChange={(e) => setIsSelf(e.target.value)}
+                    >
+                      <option value="any">Any</option>
+                      <option value="yes">Only self posts</option>
+                      <option value="no">Exclude self posts</option>
+                    </select>
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Match Mode</label>
+                <select
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  value={matchMode}
+                  onChange={(e) => setMatchMode(e.target.value)}
+                >
+                  <option value="partial">Partial words (prefix)</option>
+                  <option value="phrase">Exact phrase</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Result Limit</label>
+                <input
+                  type="number"
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  placeholder="100"
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         )}
 
         {!showFilters && (
           <div className="mt-2">
-            <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Subreddit (required)</label>
+            <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Subreddit (optional)</label>
             <select
               className="w-full p-2.5 rounded-lg text-[13px] bg-bg-secondary border border-border text-text-primary outline-none focus:border-accent transition-colors"
               value={subreddit}
               onChange={(e) => setSubreddit(e.target.value)}
             >
-              <option value="">Select subreddit...</option>
+              <option value="">All subreddits</option>
               {subreddits?.map((s) => (
                 <option key={s.name} value={s.name}>r/{s.name}</option>
               ))}
@@ -186,7 +303,7 @@ export default function SearchPage() {
       {results && !searching && (
         <div className="max-w-[800px] mx-auto">
           <div className="text-xs text-text-tertiary mb-4">
-            {results.length} results for "<span className="text-accent">{query}</span>" in r/{subreddit}
+            {results.length} results for "<span className="text-accent">{query}</span>" {subreddit ? `in r/${subreddit}` : 'across all subreddits'}
           </div>
 
           {results.length === 0 ? (
@@ -198,10 +315,11 @@ export default function SearchPage() {
                   <button
                     key={r.id}
                     onClick={() => {
+                      const targetSub = subreddit || r.subreddit;
                       if (searchType === 'submission') {
-                        navigate(`/r/${subreddit}/comments/${r.id}`);
+                        navigate(`/r/${targetSub}/comments/${r.id}`);
                       } else {
-                        navigate(`/r/${subreddit}/comments/${r.link_id}`);
+                        navigate(`/r/${targetSub}/comments/${r.link_id}`);
                       }
                     }}
                     className="grid grid-cols-[50px_1fr] gap-4 items-center p-3.5 rounded-lg text-left hover:bg-bg-tertiary transition-all"
@@ -216,6 +334,7 @@ export default function SearchPage() {
                       </div>
                       <div className="flex gap-3 text-[11px] text-text-tertiary flex-wrap">
                         <span>{formatDate(r.created_utc)}</span>
+                        {r.subreddit && !subreddit && <span>r/{r.subreddit}</span>}
                         {r.num_comments != null && <span>💬 {r.num_comments}</span>}
                       </div>
                     </div>

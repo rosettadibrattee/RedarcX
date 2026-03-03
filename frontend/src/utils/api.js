@@ -85,14 +85,43 @@ export async function fetchComments({ link_id, subreddit, parent_id, unflatten =
 
 // ---- Full-Text Search ----
 
-export async function search({ type, subreddit, query, before, after, sort }, signal) {
+export async function search({
+  type,
+  subreddit,
+  query,
+  before,
+  after,
+  sort,
+  author,
+  score_min,
+  score_max,
+  gilded_min,
+  gilded_max,
+  num_comments_min,
+  num_comments_max,
+  domain,
+  is_self,
+  match,
+  limit,
+}, signal) {
   const params = new URLSearchParams();
   params.set('type', type);
-  params.set('subreddit', subreddit);
   params.set('search', query);
+  if (subreddit) params.set('subreddit', subreddit);
   if (before) params.set('before', before);
   if (after) params.set('after', after);
   if (sort) params.set('sort', sort);
+  if (author) params.set('author', author);
+  if (score_min != null && score_min !== '') params.set('score_min', score_min);
+  if (score_max != null && score_max !== '') params.set('score_max', score_max);
+  if (gilded_min != null && gilded_min !== '') params.set('gilded_min', gilded_min);
+  if (gilded_max != null && gilded_max !== '') params.set('gilded_max', gilded_max);
+  if (num_comments_min != null && num_comments_min !== '') params.set('num_comments_min', num_comments_min);
+  if (num_comments_max != null && num_comments_max !== '') params.set('num_comments_max', num_comments_max);
+  if (domain) params.set('domain', domain);
+  if (is_self != null && is_self !== '') params.set('is_self', is_self);
+  if (match) params.set('match', match);
+  if (limit) params.set('limit', limit);
   return request(`/search?${params}`, { signal });
 }
 
