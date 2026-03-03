@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search as SearchIcon, Filter, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { search as searchApi, fetchSubreddits } from '../utils/api';
 import { formatDate, formatNumber, toUnixTimestamp } from '../utils/format';
 import { useApi } from '../hooks/useApi';
-import { EmptyState, Loading, Badge } from '../components/UI';
+import { EmptyState, Loading } from '../components/UI';
 
 export default function SearchPage() {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export default function SearchPage() {
   const [before, setBefore] = useState('');
   const [after, setAfter] = useState('');
   const [author, setAuthor] = useState('');
+  const [keywords, setKeywords] = useState('');
   const [scoreMin, setScoreMin] = useState('');
   const [scoreMax, setScoreMax] = useState('');
   const [commentsMin, setCommentsMin] = useState('');
@@ -21,7 +22,9 @@ export default function SearchPage() {
   const [domain, setDomain] = useState('');
   const [isSelf, setIsSelf] = useState('any');
   const [matchMode, setMatchMode] = useState('partial');
-  const [limit, setLimit] = useState('100');
+  const [sortBy, setSortBy] = useState('new');
+  const [pageSize, setPageSize] = useState('20');
+  const [offset, setOffset] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -29,7 +32,13 @@ export default function SearchPage() {
 
   const { data: subreddits } = useApi((s) => fetchSubreddits(s), []);
 
-  const handleSearch = useCallback(async () => {
+  useEffect(() => {
+    if (searchType === 'comment' && (sortBy === 'num_comments_desc' || sortBy === 'num_comments_asc')) {
+      setSortBy('new');
+    }
+  }, [searchType, sortBy]);
+
+  const runSearch = useCallback(async (nextOffset = 0, sortOverride = null, pageSizeOverride = null) => {
     const q = query.trim();
     if (!q) { setErrorMsg('Enter a search term'); return; }
     setErrorMsg('');
@@ -43,15 +52,19 @@ export default function SearchPage() {
         before: toUnixTimestamp(before)?.toString(),
         after: toUnixTimestamp(after)?.toString(),
         author: author.trim() || undefined,
+        keywords: keywords.trim() || undefined,
         score_min: scoreMin || undefined,
         score_max: scoreMax || undefined,
         num_comments_min: commentsMin || undefined,
         num_comments_max: commentsMax || undefined,
         domain: domain.trim() || undefined,
         is_self: isSelf === 'any' ? undefined : (isSelf === 'yes' ? 'true' : 'false'),
+        sort_by: sortOverride || sortBy,
         match: matchMode,
-        limit: limit || undefined,
+        limit: pageSizeOverride || pageSize || undefined,
+        offset: nextOffset.toString(),
       });
+      setOffset(nextOffset);
       setResults(data);
     } catch (err) {
       setErrorMsg(err.message || 'Search failed');
@@ -59,41 +72,37 @@ export default function SearchPage() {
     } finally {
       setSearching(false);
     }
-  }, [query, searchType, subreddit, before, after, author, scoreMin, scoreMax, commentsMin, commentsMax, domain, isSelf, matchMode, limit]);
+  }, [query, searchType, subreddit, before, after, author, keywords, scoreMin, scoreMax, commentsMin, commentsMax, domain, isSelf, sortBy, matchMode, pageSize]);
+
+  const handleSearch = useCallback(async () => {
+    await runSearch(0);
+  }, [runSearch]);
+
+  const handleSortChange = useCallback(async (value) => {
+    setSortBy(value);
+    if (query.trim()) {
+      await runSearch(0, value);
+    }
+  }, [query, runSearch]);
+
+  const handlePageSizeChange = useCallback(async (value) => {
+    setPageSize(value);
+    if (query.trim()) {
+      await runSearch(0, null, value);
+    }
+  }, [query, runSearch]);
 
   const handlePaginate = useCallback(async (direction) => {
-    if (!results || results.length === 0) return;
-    const ts = direction === 'next'
-      ? results[results.length - 1].created_utc
-      : results[0].created_utc;
+    const step = Number(pageSize) || 20;
+    const nextOffset = direction === 'next'
+      ? offset + step
+      : Math.max(0, offset - step);
+    await runSearch(nextOffset);
+  }, [offset, pageSize, runSearch]);
 
-    setSearching(true);
-    try {
-      const data = await searchApi({
-        type: searchType,
-        subreddit: subreddit || undefined,
-        query: query.trim(),
-        before: direction === 'next' ? ts.toString() : undefined,
-        after: direction === 'prev' ? ts.toString() : undefined,
-        sort: direction === 'prev' ? 'asc' : 'desc',
-        author: author.trim() || undefined,
-        score_min: scoreMin || undefined,
-        score_max: scoreMax || undefined,
-        num_comments_min: commentsMin || undefined,
-        num_comments_max: commentsMax || undefined,
-        domain: domain.trim() || undefined,
-        is_self: isSelf === 'any' ? undefined : (isSelf === 'yes' ? 'true' : 'false'),
-        match: matchMode,
-        limit: limit || undefined,
-      });
-      if (direction === 'prev') data.reverse();
-      setResults(data);
-    } catch (err) {
-      setErrorMsg(err.message);
-    } finally {
-      setSearching(false);
-    }
-  }, [results, searchType, subreddit, query, author, scoreMin, scoreMax, commentsMin, commentsMax, domain, isSelf, matchMode, limit]);
+  const pageSizeNum = Number(pageSize) || 20;
+  const hasPrev = offset > 0;
+  const hasNext = Array.isArray(results) && results.length === pageSizeNum;
 
   return (
     <div>
@@ -174,6 +183,15 @@ export default function SearchPage() {
                   placeholder="Filter by author..."
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Keywords</label>
+                <input
+                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
+                  placeholder="Extra required terms..."
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
                 />
               </div>
               <div>
@@ -260,16 +278,6 @@ export default function SearchPage() {
                   <option value="phrase">Exact phrase</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-[11px] font-medium text-text-tertiary uppercase tracking-wider mb-1">Result Limit</label>
-                <input
-                  type="number"
-                  className="w-full p-2.5 rounded-lg text-[13px] bg-bg-tertiary border border-border text-text-primary outline-none focus:border-accent transition-colors"
-                  placeholder="100"
-                  value={limit}
-                  onChange={(e) => setLimit(e.target.value)}
-                />
-              </div>
             </div>
           </div>
         )}
@@ -302,8 +310,27 @@ export default function SearchPage() {
 
       {results && !searching && (
         <div className="max-w-[800px] mx-auto">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Sort Results</span>
+            <select
+              className="px-3 py-1.5 rounded-md text-[11px] font-medium bg-bg-tertiary border border-border text-text-secondary outline-none focus:border-accent transition-colors"
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value)}
+            >
+              <option value="new">Newest first</option>
+              <option value="old">Oldest first</option>
+              <option value="relevance">Most relevant</option>
+              <option value="score_desc">Top score</option>
+              <option value="score_asc">Lowest score</option>
+              <option value="gilded_desc">Most gilded</option>
+              <option value="gilded_asc">Least gilded</option>
+              {searchType === 'submission' && <option value="num_comments_desc">Most comments</option>}
+              {searchType === 'submission' && <option value="num_comments_asc">Fewest comments</option>}
+            </select>
+          </div>
+
           <div className="text-xs text-text-tertiary mb-4">
-            {results.length} results for "<span className="text-accent">{query}</span>" {subreddit ? `in r/${subreddit}` : 'across all subreddits'}
+            {results.length} results for "<span className="text-accent">{query}</span>" {subreddit ? `in r/${subreddit}` : 'across all subreddits'} (page {(Math.floor(offset / pageSizeNum) + 1)})
           </div>
 
           {results.length === 0 ? (
@@ -342,16 +369,28 @@ export default function SearchPage() {
                 ))}
               </div>
 
-              <div className="flex items-center justify-center gap-2 mt-6 py-4">
+              <div className="flex items-center justify-center gap-2 mt-6 py-4 flex-wrap">
+                <select
+                  className="px-3 py-2.5 rounded-lg text-xs font-semibold uppercase bg-bg-tertiary text-text-secondary border border-border outline-none focus:border-accent transition-colors"
+                  value={pageSize}
+                  onChange={(e) => handlePageSizeChange(e.target.value)}
+                >
+                  <option value="20">20 / page</option>
+                  <option value="50">50 / page</option>
+                  <option value="100">100 / page</option>
+                  <option value="200">200 / page</option>
+                </select>
                 <button
                   onClick={() => handlePaginate('prev')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase bg-bg-tertiary text-text-secondary border border-border hover:bg-bg-hover transition-all"
+                  disabled={!hasPrev || searching}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase bg-bg-tertiary text-text-secondary border border-border hover:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronLeft size={14} /> Prev
                 </button>
                 <button
                   onClick={() => handlePaginate('next')}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase bg-bg-tertiary text-text-secondary border border-border hover:bg-bg-hover transition-all"
+                  disabled={!hasNext || searching}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold uppercase bg-bg-tertiary text-text-secondary border border-border hover:bg-bg-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Next <ChevronRight size={14} />
                 </button>

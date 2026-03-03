@@ -92,7 +92,9 @@ export async function search({
   before,
   after,
   sort,
+  sort_by,
   author,
+  keywords,
   score_min,
   score_max,
   gilded_min,
@@ -103,6 +105,7 @@ export async function search({
   is_self,
   match,
   limit,
+  offset,
 }, signal) {
   const params = new URLSearchParams();
   params.set('type', type);
@@ -111,7 +114,9 @@ export async function search({
   if (before) params.set('before', before);
   if (after) params.set('after', after);
   if (sort) params.set('sort', sort);
+  if (sort_by) params.set('sort_by', sort_by);
   if (author) params.set('author', author);
+  if (keywords) params.set('keywords', keywords);
   if (score_min != null && score_min !== '') params.set('score_min', score_min);
   if (score_max != null && score_max !== '') params.set('score_max', score_max);
   if (gilded_min != null && gilded_min !== '') params.set('gilded_min', gilded_min);
@@ -122,6 +127,7 @@ export async function search({
   if (is_self != null && is_self !== '') params.set('is_self', is_self);
   if (match) params.set('match', match);
   if (limit) params.set('limit', limit);
+  if (offset != null && offset !== '') params.set('offset', offset);
   return request(`/search?${params}`, { signal });
 }
 

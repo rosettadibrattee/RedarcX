@@ -107,6 +107,18 @@ class Search:
 
         return 'ts @@ to_tsquery(%s)', [' & '.join(ts_terms)], emoji_terms
 
+    def _append_emoji_conditions(self, conditions, values, emoji_terms, search_type):
+        if not emoji_terms:
+            return
+        for token in emoji_terms:
+            if search_type == SUBMISSION:
+                values.append(f"%{token}%")
+                values.append(f"%{token}%")
+                conditions.append('(title ILIKE %s OR self_text ILIKE %s)')
+            else:
+                values.append(f"%{token}%")
+                conditions.append('body ILIKE %s')
+
     def on_get(self, req, resp):
         # Type validation
         search_type = req.get_param('type', required=True)
@@ -135,14 +147,48 @@ class Search:
         before = req.get_param('before')
         after = req.get_param('after')
         author = req.get_param('author')
+        keywords = req.get_param('keywords')
         domain = req.get_param('domain')
         is_self = req.get_param('is_self')
         match_mode = req.get_param('match', default='partial').lower()
-        sort = req.get_param('sort', default='desc').lower()
-        limit = req.get_param_as_int('limit') or 100
+        sort_by = req.get_param('sort_by')
+        legacy_sort = req.get_param('sort', default='desc').lower()
+        limit = req.get_param_as_int('limit') or 20
 
+        if limit < 1:
+            limit = 1
         if limit > 500:
             limit = 500
+
+        offset, err = self._parse_int_param(req, 'offset')
+        if err:
+            resp.status = falcon.HTTP_400
+            resp.text = json.dumps({"error": err})
+            resp.content_type = falcon.MEDIA_JSON
+            return
+        if offset is None:
+            offset = 0
+        if offset < 0:
+            resp.status = falcon.HTTP_400
+            resp.text = json.dumps({"error": "offset must be >= 0"})
+            resp.content_type = falcon.MEDIA_JSON
+            return
+
+        if not sort_by:
+            sort_by = 'old' if legacy_sort == 'asc' else 'new'
+        sort_by = sort_by.lower()
+        valid_sort = {
+            'new', 'old',
+            'score_desc', 'score_asc',
+            'gilded_desc', 'gilded_asc',
+            'num_comments_desc', 'num_comments_asc',
+            'relevance',
+        }
+        if sort_by not in valid_sort:
+            resp.status = falcon.HTTP_400
+            resp.text = json.dumps({"error": "invalid sort_by value"})
+            resp.content_type = falcon.MEDIA_JSON
+            return
 
         # Validate timestamps
         if before and not before.isnumeric():
@@ -160,6 +206,12 @@ class Search:
         if match_mode not in ('partial', 'phrase'):
             resp.status = falcon.HTTP_400
             resp.text = json.dumps({"error": "match must be partial or phrase"})
+            resp.content_type = falcon.MEDIA_JSON
+            return
+
+        if keywords and len(keywords.strip()) > 200:
+            resp.status = falcon.HTTP_400
+            resp.text = json.dumps({"error": "keywords query too long (max 200 chars)"})
             resp.content_type = falcon.MEDIA_JSON
             return
 
@@ -278,15 +330,14 @@ class Search:
             values.extend(ts_values)
             conditions.append(ts_clause)
 
-        if emoji_terms:
-            for token in emoji_terms:
-                if search_type == SUBMISSION:
-                    values.append(f"%{token}%")
-                    values.append(f"%{token}%")
-                    conditions.append('(title ILIKE %s OR self_text ILIKE %s)')
-                else:
-                    values.append(f"%{token}%")
-                    conditions.append('body ILIKE %s')
+        self._append_emoji_conditions(conditions, values, emoji_terms, search_type)
+
+        if keywords and keywords.strip():
+            kw_clause, kw_values, kw_emoji_terms = self._build_tsquery(keywords.strip(), match_mode)
+            if kw_clause:
+                values.extend(kw_values)
+                conditions.append(kw_clause)
+            self._append_emoji_conditions(conditions, values, kw_emoji_terms, search_type)
 
         if not conditions:
             resp.status = falcon.HTTP_400
@@ -297,13 +348,39 @@ class Search:
         text += ' ' + ' AND '.join(conditions)
 
         # Sort
-        if sort == 'asc':
-            text += ' ORDER BY created_utc ASC'
-        else:
+        if sort_by == 'new':
             text += ' ORDER BY created_utc DESC'
+        elif sort_by == 'old':
+            text += ' ORDER BY created_utc ASC'
+        elif sort_by == 'score_desc':
+            text += ' ORDER BY score DESC, created_utc DESC'
+        elif sort_by == 'score_asc':
+            text += ' ORDER BY score ASC, created_utc DESC'
+        elif sort_by == 'gilded_desc':
+            text += ' ORDER BY gilded DESC, created_utc DESC'
+        elif sort_by == 'gilded_asc':
+            text += ' ORDER BY gilded ASC, created_utc DESC'
+        elif sort_by == 'num_comments_desc':
+            if search_type != SUBMISSION:
+                resp.status = falcon.HTTP_400
+                resp.text = json.dumps({"error": "num_comments sorting is only valid for submissions"})
+                resp.content_type = falcon.MEDIA_JSON
+                return
+            text += ' ORDER BY num_comments DESC, created_utc DESC'
+        elif sort_by == 'num_comments_asc':
+            if search_type != SUBMISSION:
+                resp.status = falcon.HTTP_400
+                resp.text = json.dumps({"error": "num_comments sorting is only valid for submissions"})
+                resp.content_type = falcon.MEDIA_JSON
+                return
+            text += ' ORDER BY num_comments ASC, created_utc DESC'
+        else:
+            values.append(search_phrase)
+            text += ' ORDER BY ts_rank(ts, plainto_tsquery(%s)) DESC, created_utc DESC'
 
-        text += ' LIMIT %s'
+        text += ' LIMIT %s OFFSET %s'
         values.append(limit)
+        values.append(offset)
 
         try:
             pg_con = self.pool.getconn()
