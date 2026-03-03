@@ -1,0 +1,18 @@
+{"id":"c001","subreddit":"python","author":"bob42","score":12,"gilded":0,"created_utc":1704068200,"body":"Nice write-up. Did you profile IO vs CPU?","link_id":"t3_sub001","parent_id":"t3_sub001"}
+{"id":"c002","subreddit":"python","author":"alice_dev","score":9,"gilded":0,"created_utc":1704068300,"body":"Mostly IO; switched to buffered reads and got a big win.","link_id":"t3_sub001","parent_id":"t1_c001"}
+{"id":"c003","subreddit":"python","author":"perf_ninja","score":6,"gilded":0,"created_utc":1704068400,"body":"Try mmap too. It helps on huge files.","link_id":"t3_sub001","parent_id":"t1_c001"}
+{"id":"c004","subreddit":"python","author":"unicode_fan","score":4,"gilded":0,"created_utc":1704068500,"body":"Great that your parser keeps emoji like 🚀 and ✅.","link_id":"t3_sub001","parent_id":"t3_sub001"}
+{"id":"c005","subreddit":"python","author":"sql_otter","score":15,"gilded":1,"created_utc":1704154600,"body":"Can you share code for the groupby benchmark?","link_id":"t3_sub002","parent_id":"t3_sub002"}
+{"id":"c006","subreddit":"python","author":"data_wiz","score":8,"gilded":0,"created_utc":1704154700,"body":"Yep, added script + docker compose in the repo.","link_id":"t3_sub002","parent_id":"t1_c005"}
+{"id":"c007","subreddit":"python","author":"skeptic_dev","score":3,"gilded":0,"created_utc":1704154800,"body":"Which dataset size? small tests can mislead.","link_id":"t3_sub002","parent_id":"t3_sub002"}
+{"id":"c008","subreddit":"learnprogramming","author":"mentor_mia","score":25,"gilded":0,"created_utc":1704240500,"body":"Drawing stack frames is the move. Keep going!","link_id":"t3_sub003","parent_id":"t3_sub003"}
+{"id":"c009","subreddit":"learnprogramming","author":"newcoder99","score":14,"gilded":0,"created_utc":1704240600,"body":"Thanks! Iteration vs recursion finally makes sense now.","link_id":"t3_sub003","parent_id":"t1_c008"}
+{"id":"c010","subreddit":"learnprogramming","author":"cs_student","score":7,"gilded":0,"created_utc":1704240700,"body":"Memoization next 👍","link_id":"t3_sub003","parent_id":"t3_sub003"}
+{"id":"c011","subreddit":"datascience","author":"feature_store","score":10,"gilded":0,"created_utc":1704327000,"body":"This dataset is great for seasonality features.","link_id":"t3_sub004","parent_id":"t3_sub004"}
+{"id":"c012","subreddit":"datascience","author":"ml_ops_guy","score":5,"gilded":0,"created_utc":1704327100,"body":"Exactly. Also useful for anomaly detection.","link_id":"t3_sub004","parent_id":"t1_c011"}
+{"id":"c013","subreddit":"python","author":"jwt_jane","score":18,"gilded":0,"created_utc":1704413300,"body":"Cookie path bugs are brutal. Thanks for posting.","link_id":"t3_sub005","parent_id":"t3_sub005"}
+{"id":"c014","subreddit":"python","author":"backend_bella","score":11,"gilded":0,"created_utc":1704413400,"body":"I also rotated refresh tokens per login to reduce replay risk.","link_id":"t3_sub005","parent_id":"t1_c013"}
+{"id":"c015","subreddit":"python","author":"api_reader","score":5,"gilded":0,"created_utc":1704413500,"body":"Did you use HttpOnly + SameSite=strict?","link_id":"t3_sub005","parent_id":"t3_sub005"}
+{"id":"c016","subreddit":"learnprogramming","author":"regex_ranger","score":13,"gilded":0,"created_utc":1704499700,"body":"Use unicode categories; avoid stripping symbols blindly.","link_id":"t3_sub006","parent_id":"t3_sub006"}
+{"id":"c017","subreddit":"learnprogramming","author":"text_parser","score":9,"gilded":0,"created_utc":1704499800,"body":"Yep, switched from ASCII regex to unicode-aware tokenization 😅","link_id":"t3_sub006","parent_id":"t1_c016"}
+{"id":"c018","subreddit":"learnprogramming","author":"mod_helper","score":2,"gilded":0,"created_utc":1704499900,"body":"Please share final pattern once stable.","link_id":"t3_sub006","parent_id":"t3_sub006"}
