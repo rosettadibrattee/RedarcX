@@ -2,6 +2,24 @@
 
 A complete reframe of [Yakabuff/redarc](https://github.com/Yakabuff/redarc), modernizing the frontend, search capabilities, and data ingestion workflow.
 
+## Demo Mode (No Postgres Required)
+
+For fast demos, enable in-memory mode:
+
+```bash
+DEMO=true
+```
+
+When `DEMO=true`:
+- API boots without Postgres or Redis
+- `/search`, `/search/submissions`, `/search/comments`, `/stats`, `/progress`, `/upload/status`, and admin routes run against mock data
+- Upload and submit endpoints return simulated accepted/completed jobs for UI walkthroughs
+
+Notes:
+- Demo data is in `api/demo_mode.py`
+- This mode is intended for presentation/testing only (data is process-local and not persistent)
+- Leave `DEMO=false` for normal self-hosted or production deployments
+
 ## What Changed
 
 ### Frontend (Complete Rewrite)
