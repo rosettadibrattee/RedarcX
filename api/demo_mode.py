@@ -337,6 +337,7 @@ class DemoStore:
         ]
 
         self._expand_seed_data(now)
+        self._expand_progress_history(now)
         self._refresh_submission_counts()
 
     def _expand_seed_data(self, now):
@@ -484,6 +485,29 @@ class DemoStore:
 
         self.submissions.extend(synthetic_submissions)
         self.comments.extend(synthetic_comments)
+
+    def _expand_progress_history(self, now):
+        demo_urls = [
+            "https://reddit.com/r/python/comments/d3mo001/asyncio_debugging_tips/",
+            "https://reddit.com/r/programming/comments/d3mo002/rust_parser_benchmark/",
+            "https://reddit.com/r/dataisbeautiful/comments/d3mo003/archive_growth_heatmap/",
+            "https://reddit.com/r/learnmachinelearning/comments/d3mo004/fine_tuning_notes/",
+            "https://reddit.com/r/python/comments/d3mo005/unicode_emoji_normalization/",
+            "https://reddit.com/r/programming/comments/d3mo006/local_first_moderation_toolbox/",
+        ]
+
+        # Mix of successful, failed, and in-progress jobs for admin demo visibility.
+        for idx in range(18):
+            start = now - (idx + 2) * 1800
+            is_error = idx % 7 == 0
+            in_progress = idx % 11 == 0
+            self.progress.append({
+                "job_id": f"demo-ingest-{idx + 1:03d}",
+                "url": demo_urls[idx % len(demo_urls)],
+                "start_utc": start,
+                "finish_utc": None if in_progress else (start + 40 + (idx % 120)),
+                "error": "Rate limited by upstream API, retry queued" if is_error else None,
+            })
 
     def _refresh_submission_counts(self):
         counts = {}
