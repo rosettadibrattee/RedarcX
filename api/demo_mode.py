@@ -336,7 +336,154 @@ class DemoStore:
             },
         ]
 
+        self._expand_seed_data(now)
         self._refresh_submission_counts()
+
+    def _expand_seed_data(self, now):
+        subreddits = [
+            "python",
+            "programming",
+            "dataisbeautiful",
+            "learnmachinelearning",
+            "technology",
+            "compsci",
+            "devops",
+            "datascience",
+        ]
+        title_prefixes = [
+            "Practical notes",
+            "Deep dive",
+            "Benchmark report",
+            "Field guide",
+            "Design walkthrough",
+            "Production postmortem",
+            "Optimization tips",
+            "Architecture diary",
+        ]
+        title_topics = [
+            "emoji-aware search",
+            "partial-word indexing",
+            "moderation filters",
+            "thread unflattening",
+            "upload job telemetry",
+            "query relevance tuning",
+            "dataset backfill strategy",
+            "render deployment fixes",
+            "FTS fallback behavior",
+            "admin danger-zone review",
+        ]
+        authors = [
+            "alice",
+            "bob",
+            "chartcat",
+            "mlmentor",
+            "unicode_wizard",
+            "opsgeek",
+            "bytequeen",
+            "traceback_tom",
+            "clangfan",
+            "llm_student",
+            "emoji_bot",
+            "site_reliability",
+            "data_dora",
+            "infra_ian",
+            "qa_quinn",
+            "parser_pat",
+        ]
+        comment_starts = [
+            "Nice write-up.",
+            "This matches our production findings.",
+            "Could you share benchmark inputs?",
+            "I reproduced this on my side.",
+            "Great catch on the edge case.",
+            "This is useful for demo environments.",
+            "We saw similar behavior last sprint.",
+            "Thanks for documenting this clearly.",
+        ]
+
+        synthetic_submissions = []
+        synthetic_comments = []
+        submission_count = 72
+
+        for idx in range(submission_count):
+            sid = f"d3x{idx + 1:04d}"
+            subreddit = subreddits[idx % len(subreddits)]
+            author = authors[idx % len(authors)]
+            created_utc = now - 21600 - (idx * 900)
+            is_self = idx % 3 != 0
+
+            prefix = title_prefixes[idx % len(title_prefixes)]
+            topic = title_topics[idx % len(title_topics)]
+            emoji = " 🚀" if idx % 9 == 0 else (" 🔥" if idx % 11 == 0 else "")
+            title = f"{prefix}: {topic}{emoji}"
+
+            if is_self:
+                url = f"https://reddit.com/r/{subreddit}/comments/{sid}/demo_post_{idx + 1}/"
+                self_text = (
+                    f"Long-form notes about {topic}. "
+                    f"Covers partial matching, keywords, and emoji handling for realistic demo search."
+                )
+                thumbnail = "self"
+            else:
+                url = f"https://example.org/{subreddit}/demo/{idx + 1}"
+                self_text = ""
+                thumbnail = "default"
+
+            synthetic_submissions.append({
+                "id": sid,
+                "subreddit": subreddit,
+                "title": title,
+                "author": author,
+                "permalink": f"/r/{subreddit}/comments/{sid}/demo_post_{idx + 1}/",
+                "thumbnail": thumbnail,
+                "num_comments": 0,
+                "url": url,
+                "score": 25 + ((idx * 17) % 520),
+                "gilded": 1 if idx % 14 == 0 else 0,
+                "created_utc": created_utc,
+                "self_text": self_text,
+                "is_self": is_self,
+            })
+
+            root_comments = 3 + (idx % 3)
+            first_comment_id = None
+            for cidx in range(root_comments):
+                cid = f"c3x{idx + 1:04d}{cidx + 1:02d}"
+                parent_id = sid if cidx < 2 else f"c3x{idx + 1:04d}{cidx:02d}"
+                if first_comment_id is None:
+                    first_comment_id = cid
+                body = (
+                    f"{comment_starts[(idx + cidx) % len(comment_starts)]} "
+                    f"Test case {idx + 1}.{cidx + 1} for {topic} with partial tokens and emojis 🚀."
+                )
+                synthetic_comments.append({
+                    "id": cid,
+                    "subreddit": subreddit,
+                    "body": body,
+                    "author": authors[(idx + cidx + 3) % len(authors)],
+                    "score": 3 + ((idx * 5 + cidx * 7) % 90),
+                    "gilded": 1 if (idx + cidx) % 37 == 0 else 0,
+                    "created_utc": created_utc + ((cidx + 1) * 110),
+                    "parent_id": parent_id,
+                    "link_id": sid,
+                })
+
+            if first_comment_id and idx % 4 == 0:
+                reply_id = f"c3xr{idx + 1:04d}"
+                synthetic_comments.append({
+                    "id": reply_id,
+                    "subreddit": subreddit,
+                    "body": f"Threaded follow-up for demo post {idx + 1}. This helps show nested replies.",
+                    "author": authors[(idx + 7) % len(authors)],
+                    "score": 2 + (idx % 15),
+                    "gilded": 0,
+                    "created_utc": created_utc + 700,
+                    "parent_id": first_comment_id,
+                    "link_id": sid,
+                })
+
+        self.submissions.extend(synthetic_submissions)
+        self.comments.extend(synthetic_comments)
 
     def _refresh_submission_counts(self):
         counts = {}
