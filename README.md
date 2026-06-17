@@ -20,6 +20,28 @@ Notes:
 - This mode is intended for presentation/testing only (data is process-local and not persistent)
 - Leave `DEMO=false` for normal self-hosted or production deployments
 
+## GitHub Pages Frontend Preview
+
+This branch includes a GitHub Actions workflow at `.github/workflows/frontend-pages.yml` that builds `frontend/` and deploys the static Vite output to GitHub Pages when `demo` is pushed.
+
+Expected preview URL for this fork:
+
+```text
+https://rosettadibrattee.github.io/RedarcX/
+```
+
+Required repository setup:
+
+- In GitHub, open **Settings -> Pages** and set **Source** to **GitHub Actions**.
+- If the preview should call a live API, add a repository variable named `VITE_API_DOMAIN` under **Settings -> Secrets and variables -> Actions -> Variables**. Example: `https://redarc.example.com`. Leave it unset for a static UI preview; API calls will fall back to `/api`.
+
+Local verification for the Pages build:
+
+```bash
+cd frontend
+VITE_BASE_PATH=/RedarcX/ npm run build
+```
+
 ## What Changed
 
 ### Frontend (Complete Rewrite)

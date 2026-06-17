@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 /* ---- Breadcrumb ---- */
 export function Breadcrumb({ items }) {
@@ -8,9 +9,9 @@ export function Breadcrumb({ items }) {
         <span key={i} className="flex items-center gap-1">
           {i > 0 && <span className="opacity-40 mx-1">/</span>}
           {item.to ? (
-            <a href={item.to} className="hover:text-accent transition-colors">
+            <Link to={item.to} className="hover:text-accent transition-colors">
               {item.label}
-            </a>
+            </Link>
           ) : item.onClick ? (
             <button onClick={item.onClick} className="hover:text-accent transition-colors">
               {item.label}
