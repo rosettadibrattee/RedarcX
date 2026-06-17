@@ -5,13 +5,48 @@
  * Provides: error handling, response typing, pagination helpers, abort support.
  */
 
+import {
+  createDemoUpload,
+  getDemoComments,
+  getDemoProgress,
+  getDemoStats,
+  getDemoSubmissions,
+  getDemoSubreddits,
+  getDemoUploadStatus,
+  mutateDemoUnlist,
+  mutateDemoWatch,
+  previewDemoDelete,
+  searchDemo,
+  submitDemoUrl,
+} from './demoData';
+
 const API_BASE = (import.meta.env.VITE_API_DOMAIN || '/api').replace(/\/+$/, '');
+const FORCE_STATIC_DEMO = import.meta.env.VITE_STATIC_DEMO === 'true';
 
 class ApiError extends Error {
   constructor(message, status, body) {
     super(message);
     this.status = status;
     this.body = body;
+  }
+}
+
+function shouldUseDemoFallback(err) {
+  if (FORCE_STATIC_DEMO) return true;
+  if (!(err instanceof ApiError)) return false;
+  return err.status === 0 || err.status === 404;
+}
+
+async function withDemoFallback(liveRequest, demoRequest) {
+  if (FORCE_STATIC_DEMO) return demoRequest();
+
+  try {
+    return await liveRequest();
+  } catch (err) {
+    if (shouldUseDemoFallback(err)) {
+      return demoRequest();
+    }
+    throw err;
   }
 }
 
@@ -50,11 +85,17 @@ async function request(endpoint, options = {}) {
 // ---- Subreddits ----
 
 export async function fetchSubreddits(signal) {
-  return request('/search/subreddits', { signal });
+  return withDemoFallback(
+    () => request('/search/subreddits', { signal }),
+    () => getDemoSubreddits()
+  );
 }
 
 export async function fetchStats(signal) {
-  return request('/stats', { signal });
+  return withDemoFallback(
+    () => request('/stats', { signal }),
+    () => getDemoStats()
+  );
 }
 
 // ---- Submissions ----
@@ -66,7 +107,10 @@ export async function fetchSubmissions({ subreddit, before, after, sort = 'DESC'
   if (after) params.set('after', after);
   if (sort) params.set('sort', sort);
   if (id) params.set('id', id);
-  return request(`/search/submissions?${params}`, { signal });
+  return withDemoFallback(
+    () => request(`/search/submissions?${params}`, { signal }),
+    () => getDemoSubmissions({ subreddit, before, after, sort, id })
+  );
 }
 
 // ---- Comments ----
@@ -80,7 +124,10 @@ export async function fetchComments({ link_id, subreddit, parent_id, unflatten =
   if (before) params.set('before', before);
   if (after) params.set('after', after);
   if (sort) params.set('sort', sort);
-  return request(`/search/comments?${params}`, { signal });
+  return withDemoFallback(
+    () => request(`/search/comments?${params}`, { signal }),
+    () => getDemoComments({ link_id, subreddit, parent_id, unflatten, before, after, sort })
+  );
 }
 
 // ---- Full-Text Search ----
@@ -128,17 +175,44 @@ export async function search({
   if (match) params.set('match', match);
   if (limit) params.set('limit', limit);
   if (offset != null && offset !== '') params.set('offset', offset);
-  return request(`/search?${params}`, { signal });
+  return withDemoFallback(
+    () => request(`/search?${params}`, { signal }),
+    () => searchDemo({
+      type,
+      subreddit,
+      query,
+      before,
+      after,
+      sort,
+      sort_by,
+      author,
+      keywords,
+      score_min,
+      score_max,
+      gilded_min,
+      gilded_max,
+      num_comments_min,
+      num_comments_max,
+      domain,
+      is_self,
+      match,
+      limit,
+      offset,
+    })
+  );
 }
 
 // ---- Submit URL ----
 
 export async function submitUrl(url, password = '') {
-  return request('/submit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, password }),
-  });
+  return withDemoFallback(
+    () => request('/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, password }),
+    }),
+    () => submitDemoUrl(url)
+  );
 }
 
 // ---- Upload File ----
@@ -153,56 +227,74 @@ export async function uploadFile(file, { type = 'auto', password = '', target = 
   // Append file last to preserve compatibility with streaming multipart parsers.
   formData.append('file', file);
 
-  return request('/upload', {
-    method: 'POST',
-    body: formData,
-    // Don't set Content-Type — browser sets it with boundary for multipart
-  });
+  return withDemoFallback(
+    () => request('/upload', {
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type — browser sets it with boundary for multipart
+    }),
+    () => createDemoUpload(file)
+  );
 }
 
 export async function fetchUploadStatus(jobId) {
   const endpoint = jobId ? `/upload/status?job_id=${jobId}` : '/upload/status';
-  return request(endpoint);
+  return withDemoFallback(
+    () => request(endpoint),
+    () => getDemoUploadStatus(jobId)
+  );
 }
 
 // ---- Watch ----
 
 export async function watchSubreddit(subreddit, action, password) {
-  return request('/watch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subreddit, action, password }),
-  });
+  return withDemoFallback(
+    () => request('/watch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subreddit, action, password }),
+    }),
+    () => mutateDemoWatch(subreddit, action)
+  );
 }
 
 // ---- Unlist ----
 
 export async function unlistSubreddit(subreddit, unlist, password) {
-  return request('/unlist', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subreddit, unlist, password }),
-  });
+  return withDemoFallback(
+    () => request('/unlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subreddit, unlist, password }),
+    }),
+    () => mutateDemoUnlist(subreddit, unlist)
+  );
 }
 
 // ---- Progress ----
 
 export async function fetchProgress(password = '') {
-  return request('/progress', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
-  });
+  return withDemoFallback(
+    () => request('/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    }),
+    () => getDemoProgress()
+  );
 }
 
 // ---- Admin Danger Zone ----
 
 export async function adminDeleteByFilter(payload) {
-  return request('/admin/delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  return withDemoFallback(
+    () => request('/admin/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+    () => previewDemoDelete(payload)
+  );
 }
 
 // ---- Hooks helper ----

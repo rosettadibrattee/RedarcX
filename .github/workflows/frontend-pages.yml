@@ -43,6 +43,7 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_STATIC_DEMO: true
           VITE_API_DOMAIN: ${{ vars.VITE_API_DOMAIN }}
 
       - name: Add SPA fallback
